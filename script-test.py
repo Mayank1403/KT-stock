@@ -5,6 +5,39 @@ import re
 import requests
 import xml.etree.ElementTree as ET
 from flask import Flask, render_template_string
+from datetime import datetime, timezone, timedelta
+
+IST = timezone(timedelta(hours=5, minutes=30))
+
+def is_cache_fresh():
+    if not _cache["timestamp"]:
+        return False
+    return (time.time() - _cache["timestamp"]) < CACHE_TTL
+
+def get_stock_data():
+    global _cache
+
+    # Always try Tally first — only fall back to cache if Tally fails
+    try:
+        xml_text = fetch_stock_data()
+        items    = parse_stock_data(xml_text)
+        if items:
+            _cache["data"]      = items
+            _cache["timestamp"] = time.time()
+            _cache["source"]    = "live tally"
+            save_cache_to_disk()
+            print(f"Fetched {len(items)} items fresh from Tally.")
+            return items
+    except Exception as e:
+        print(f"Tally unreachable: {e}")
+
+    # Fallback to memory/disk cache
+    if _cache["data"]:
+        print("Serving stale cache.")
+        _cache["source"] = "offline cache"
+        return _cache["data"]
+
+    return []
 
 app = Flask(__name__)
 TALLY_URL  = os.environ.get("TALLY_URL", "http://localhost:9000")
@@ -323,7 +356,11 @@ HTML_TEMPLATE = """
 def index():
     items     = get_stock_data()
     data_json = json.dumps(items)
-    cached_at = time.strftime('%d %b %Y, %I:%M %p', time.localtime(_cache["timestamp"])) if _cache["timestamp"] else "Never"
+    # Convert to IST
+    if _cache["timestamp"]:
+        cached_at = datetime.fromtimestamp(_cache["timestamp"], tz=IST).strftime('%d %b %Y, %I:%M %p IST')
+    else:
+        cached_at = "Never"
     return render_template_string(HTML_TEMPLATE,
                                   data_json=data_json,
                                   total=len(items),
