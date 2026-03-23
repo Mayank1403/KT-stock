@@ -1,0 +1,1 @@
+web: python tally_stock.py
