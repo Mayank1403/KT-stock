@@ -193,15 +193,18 @@ HTML_TEMPLATE = """
 <body>
     <h2>📦 Stock Master — Kanhaiya Textile</h2>
 
-    <div class="status {{ 'live' if source == 'live tally' else 'cached' if source == 'live cache' else 'offline' }}">
-        {% if source == 'live tally' %}
-            ✅ Live data from Tally — Updated: {{ cached_at }}
-        {% elif source == 'live cache' %}
-            ⚡ Cached (Tally connected) — Last updated: {{ cached_at }}
-        {% else %}
-            ⚠️ Tally offline — Showing last known data from {{ cached_at }}
-        {% endif %}
-    </div>
+    <!-- Line 1: status div class -->
+<div class="status {{ 'live' if data_source == 'live tally' else 'cached' if data_source == 'live cache' else 'offline' }}">
+
+<!-- Line 2: condition block -->
+    {% if data_source == 'live tally' %}
+        ✅ Live data from Tally — Updated: {{ cached_at }}
+    {% elif data_source == 'live cache' %}
+        ⚡ Cached (Tally connected) — Last updated: {{ cached_at }}
+    {% else %}
+        ⚠️ Tally offline — Showing last known data from {{ cached_at }}
+    {% endif %}
+</div>
 
     <div class="toolbar">
         <input type="text" id="search" placeholder="🔍 Search item or group...">
@@ -325,7 +328,8 @@ def index():
                                   data_json=data_json,
                                   total=len(items),
                                   cached_at=cached_at,
-                                  source=_cache["source"])
+                                  data_source=_cache["source"])
+
 
 @app.route("/refresh")
 def refresh():
