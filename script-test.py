@@ -210,10 +210,14 @@ def parse_voucher_data(results):
             with open(f"tally_raw_voucher_{vtype_label}.xml", "w", encoding="utf-8") as f:
                 f.write(xml_text)
     def sort_key(row):
+        # Primary: date descending; Secondary: numeric part of voucher number descending
         d = row[0]
-        if d and len(d) == 10 and d[2] == '/':
-            return d[6:] + d[3:5] + d[:2]
-        return d
+        date_key = (d[6:] + d[3:5] + d[:2]) if (d and len(d) == 10 and d[2] == '/') else (d or "")
+        vnum = row[1] or ""
+        import re as _re
+        m = _re.search(r'(\d+)(?:/[^/]*)?$', vnum)
+        num_key = int(m.group(1)) if m else 0
+        return (date_key, num_key)
     vouchers.sort(key=sort_key, reverse=True)
     return vouchers
 
@@ -638,7 +642,21 @@ VOUCHER_TEMPLATE = """<!DOCTYPE html>
             const q=document.getElementById("vsearch").value.toLowerCase().trim();
             const type=document.getElementById("vtypeFilter").value.toLowerCase();
             vFiltered=V_ALL.filter((r,i)=>(q===""||V_IDX[i].includes(q))&&(type===""||( (r[2]||"").toLowerCase().includes(type))));
-            vFiltered.sort((a,b)=>{const va=(a[vCol]||"").toLowerCase(),vb=(b[vCol]||"").toLowerCase();return vAsc?va.localeCompare(vb):vb.localeCompare(va);});
+            vFiltered.sort((a,b)=>{
+                // Smart sort: for voucher number column (1), extract numeric part after last '/'
+                if(vCol===1){
+                    function vkey(r){
+                        const s=(r[1]||"");
+                        const parts=s.split("/");
+                        const n=parseInt(parts[parts.length-2]||parts[parts.length-1]||"0",10);
+                        return isNaN(n)?0:n;
+                    }
+                    const diff=vkey(a)-vkey(b);
+                    return vAsc?diff:-diff;
+                }
+                const va=(a[vCol]||"").toLowerCase(),vb=(b[vCol]||"").toLowerCase();
+                return vAsc?va.localeCompare(vb):vb.localeCompare(va);
+            });
             vPage=1;renderV();
         }
         function sortV(col){if(vCol===col)vAsc=!vAsc;else{vCol=col;vAsc=true;}applyFilters();}
