@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% set stylesheet = "detail.css" %}
+{% set active_page = "vouchers" %}
+{% block title %}{{ d.vnum }} &mdash; Kanhaiya Textile{% endblock %}
+{% block content %}
+    <a href="/vouchers" class="back-btn">&#8592; Back to Vouchers</a>
+
+    {% if error %}
+    <div class="error-box">&#9888; {{ error }}</div>
+    {% else %}
+    <div class="voucher-card">
+
+        <div class="voucher-header">
+            <div>
+                <div class="vnum">{{ d.vnum }}</div>
+                <div class="vtype">{{ d.vtype }}</div>
+            </div>
+            <div>
+                {% set lt = d.vtype|lower %}
+                {% if 'sale' in lt %}<span class="badge-sale-lg">&#128200; Sale Voucher</span>
+                {% elif 'purchase' in lt %}<span class="badge-purchase-lg">&#128201; Purchase Voucher</span>
+                {% else %}<span class="badge-other-lg">{{ d.vtype }}</span>{% endif %}
+            </div>
+        </div>
+
+        <div class="info-grid">
+            <div class="info-cell"><div class="lbl">Date</div><div class="val">{{ d.date or '&mdash;' }}</div></div>
+            <div class="info-cell"><div class="lbl">Party</div><div class="val">{{ d.party or '&mdash;' }}</div></div>
+            <div class="info-cell"><div class="lbl">Total Amount</div>
+                <div class="val {{ amt_css }}">{{ amt_display }}</div></div>
+            {% if d.reference %}<div class="info-cell"><div class="lbl">Reference</div><div class="val">{{ d.reference }}</div></div>{% endif %}
+        </div>
+
+        {% if d.narration %}
+        <div class="section">
+            <div class="section-title">&#128221; Narration</div>
+            <div class="narration-box">{{ d.narration }}</div>
+        </div>
+        {% endif %}
+
+        <div class="section">
+            <div class="section-title">&#128196; Ledger Entries</div>
+            {% if d.ledgers %}
+            <table class="detail-table">
+                <thead><tr>
+                    <th style="width:50%">Ledger Account</th>
+                    <th style="text-align:right">Amount</th>
+                    <th style="width:80px;text-align:center">Dr / Cr</th>
+                </tr></thead>
+                <tbody>
+                {% for le in d.ledgers %}
+                    {% set n = le.amount|string|replace(',','')|float(default=0) %}
+                    <tr>
+                        <td>{{ le.name }}</td>
+                        <td style="text-align:right">
+                            {% if le.amount and le.amount != '—' %}
+                                Rs {{ '{:,.2f}'.format(n|abs) }}
+                            {% else %}&mdash;{% endif %}
+                        </td>
+                        <td style="text-align:center">
+                            <span class="{{ 'dr' if le.dr_cr == 'Dr' else 'cr' }}">{{ le.dr_cr }}</span>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="no-data">No ledger entries found.</div>
+            {% endif %}
+        </div>
+
+        <div class="section">
+            <div class="section-title">&#128230; Stock / Inventory Items</div>
+            {% if d.inventory %}
+            <table class="detail-table">
+                <thead><tr>
+                    <th>Item Name</th>
+                    <th style="text-align:right">Billed Qty</th>
+                    <th style="text-align:right">Actual Qty</th>
+                    <th style="text-align:right">Rate</th>
+                    <th style="text-align:right">Amount</th>
+                </tr></thead>
+                <tbody>
+                {% set ns = namespace(total=0) %}
+                {% for it in d.inventory %}
+                    {% set n = it.amount|string|replace(',','')|float(default=0) %}
+                    {% set ns.total = ns.total + n|abs %}
+                    <tr>
+                        <td><strong>{{ it.name }}</strong></td>
+                        <td style="text-align:right">{{ it.billed_qty }}</td>
+                        <td style="text-align:right">{{ it.actual_qty }}</td>
+                        <td style="text-align:right">{{ it.rate }}</td>
+                        <td style="text-align:right">
+                            {% if it.amount and it.amount != '—' %}Rs {{ '{:,.2f}'.format(n|abs) }}
+                            {% else %}&mdash;{% endif %}
+                        </td>
+                    </tr>
+                {% endfor %}
+                {% if d.inventory|length > 1 %}
+                <tr class="total-row">
+                    <td colspan="4" style="text-align:right">Total</td>
+                    <td style="text-align:right">Rs {{ '{:,.2f}'.format(ns.total) }}</td>
+                </tr>
+                {% endif %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="no-data">No inventory entries found.</div>
+            {% endif %}
+        </div>
+
+    </div>
+    {% endif %}
+{% endblock %}

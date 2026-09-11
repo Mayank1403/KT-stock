@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% set stylesheet = "style.css" %}
+{% set active_page = "stock" %}
+{% block title %}Stock Master - Kanhaiya Textile{% endblock %}
+{% block content %}
+    <h2>&#128230; Stock Master &mdash; Kanhaiya Textile</h2>
+    <div class="status {{ 'live' if data_source == 'live tally' else 'cached' if data_source == 'live cache' else 'offline' }}">
+        {% if data_source == 'live tally' %}&#9989; Live data from Tally &mdash; Updated: {{ cached_at }}
+        {% elif data_source == 'live cache' %}&#9889; Cached (Tally connected) &mdash; Last updated: {{ cached_at }}
+        {% else %}&#9888; Tally offline &mdash; Showing last known data from {{ cached_at }}{% endif %}
+    </div>
+    <div class="toolbar">
+        <input type="text" id="search" placeholder="Search item or group...">
+        <span id="info"></span>
+        <a href="/refresh" class="refresh-btn">&#128260; Refresh</a>
+    </div>
+    <table>
+        <thead><tr>
+            <th style="width:50px">#</th>
+            <th onclick="sortTable(0)">Stock Item &#8597;</th>
+            <th onclick="sortTable(1)">Stock Group &#8597;</th>
+            <th onclick="sortTable(2)">Std. Sell Price &#8597;</th>
+        </tr></thead>
+        <tbody id="tableBody"></tbody>
+    </table>
+    <div id="pagination"></div>
+    <script>
+        const ALL_DATA = {{ data_json|tojson }};
+        const SEARCH_INDEX = ALL_DATA.map(r => (r[0]+" "+r[1]).toLowerCase());
+        const PAGE_SIZE = 100;
+        let filtered=[...ALL_DATA], currentPage=1, timer=null, sortCol=-1, sortAsc=true;
+        function render() {
+            const start=(currentPage-1)*PAGE_SIZE, slice=filtered.slice(start,start+PAGE_SIZE);
+            const tbody=document.getElementById("tableBody");
+            if (!filtered.length) { tbody.innerHTML='<tr><td colspan="4" class="empty">No items found.</td></tr>'; document.getElementById("info").textContent=""; document.getElementById("pagination").innerHTML=""; return; }
+            tbody.innerHTML=slice.map((r,i)=>`<tr><td>${start+i+1}</td><td><strong>${r[0]}</strong></td><td><span class="group">${r[1]}</span></td><td>${r[2]}</td></tr>`).join("");
+            document.getElementById("info").textContent=`Showing ${start+1}\u2013${Math.min(start+PAGE_SIZE,filtered.length)} of ${filtered.length} items`;
+            renderPages("pagination",currentPage,Math.ceil(filtered.length/PAGE_SIZE),goPage);
+        }
+        function renderPages(id,cur,total,cb) {
+            const el=document.getElementById(id);
+            if(total<=1){el.innerHTML="";return;}
+            let h=`<button onclick="${cb.name}(${cur-1})" ${cur===1?"disabled":""}>&#8592; Prev</button>`;
+            h+=`<button onclick="${cb.name}(1)" ${cur===1?'class="active"':""}>1</button>`;
+            if(cur>3)h+=`<span>&hellip;</span>`;
+            for(let p=Math.max(2,cur-1);p<=Math.min(total-1,cur+1);p++) h+=`<button onclick="${cb.name}(${p})" ${cur===p?'class="active"':""}>${p}</button>`;
+            if(cur<total-2)h+=`<span>&hellip;</span>`;
+            if(total>1)h+=`<button onclick="${cb.name}(${total})" ${cur===total?'class="active"':""}>${total}</button>`;
+            h+=`<button onclick="${cb.name}(${cur+1})" ${cur===total?"disabled":""}>Next &#8594;</button>`;
+            el.innerHTML=h;
+        }
+        function goPage(p){currentPage=Math.max(1,Math.min(p,Math.ceil(filtered.length/PAGE_SIZE)));render();window.scrollTo(0,0);}
+        function sortTable(col){
+            if(sortCol===col)sortAsc=!sortAsc;else{sortCol=col;sortAsc=true;}
+            filtered.sort((a,b)=>sortAsc?(a[col]||"").toLowerCase().localeCompare((b[col]||"").toLowerCase()):(b[col]||"").toLowerCase().localeCompare((a[col]||"").toLowerCase()));
+            currentPage=1;render();
+        }
+        document.getElementById("search").addEventListener("input",function(){
+            clearTimeout(timer);timer=setTimeout(()=>{const q=this.value.toLowerCase().trim();filtered=q?ALL_DATA.filter((_,i)=>SEARCH_INDEX[i].includes(q)):[...ALL_DATA];currentPage=1;render();},250);
+        });
+        render();
+    </script>
+{% endblock %}

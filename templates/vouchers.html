@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% set stylesheet = "style.css" %}
+{% set active_page = "vouchers" %}
+{% block title %}Sale &amp; Purchase Vouchers - Kanhaiya Textile{% endblock %}
+{% block content %}
+    <h2>&#129534; Sale &amp; Purchase Vouchers &mdash; Kanhaiya Textile</h2>
+    <div class="status {{ 'live' if data_source == 'live tally' else 'cached' if data_source == 'live cache' else 'offline' }}">
+        {% if data_source == 'live tally' %}&#9989; Live data from Tally &mdash; Updated: {{ cached_at }}
+        {% elif data_source == 'live cache' %}&#9889; Cached (Tally connected) &mdash; Last updated: {{ cached_at }}
+        {% else %}&#9888; Tally offline &mdash; Showing last known data from {{ cached_at }}{% endif %}
+    </div>
+    <div class="window-note">Showing the last {{ window_days }} days. Need older vouchers? Increase <code>VOUCHER_WINDOW_DAYS</code> and refresh.</div>
+    <div class="summary-bar" id="summaryBar"></div>
+    <div class="toolbar">
+        <input type="text" id="vsearch" placeholder="Search party, voucher no...">
+        <select id="vtypeFilter">
+            <option value="">All Types</option>
+            <option value="sale">Sale Voucher</option>
+            <option value="purchase">Purchase Voucher</option>
+        </select>
+        <span id="vinfo"></span>
+        <a href="/vouchers/refresh" class="refresh-btn">&#128260; Refresh</a>
+    </div>
+    <table>
+        <thead><tr>
+            <th style="width:44px">#</th>
+            <th onclick="sortV(0)">Date &#8597;</th>
+            <th onclick="sortV(1)">Voucher No. &#8597;</th>
+            <th onclick="sortV(2)">Type &#8597;</th>
+            <th onclick="sortV(3)">Party &#8597;</th>
+            <th onclick="sortV(4)">Amount &#8597;</th>
+        </tr></thead>
+        <tbody id="vBody"></tbody>
+    </table>
+    <div id="vpagination"></div>
+    <script>
+        const V_ALL  = {{ data_json|tojson }};
+        const V_IDX  = V_ALL.map(r => (r[1]+" "+r[3]).toLowerCase());
+        const V_PAGE = 100;
+        let vFiltered=[...V_ALL], vPage=1, vTimer=null, vCol=0, vAsc=false;
+
+        function badge(t) {
+            const l=(t||"").toLowerCase();
+            if(l.includes("sale"))     return `<span class="badge-sale">${t}</span>`;
+            if(l.includes("purchase")) return `<span class="badge-purchase">${t}</span>`;
+            return `<span class="badge-other">${t||"&mdash;"}</span>`;
+        }
+        function fmtAmt(raw) {
+            if(!raw||raw==="\u2014"||raw==="\u2014") return "&mdash;";
+            const n=parseFloat(String(raw).replace(/[^0-9.-]/g,""));
+            if(isNaN(n)) return raw;
+            const abs=Math.abs(n).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
+            return `<span class="${n>=0?'amount-credit':'amount-debit'}">Rs ${n>=0?'+':'&minus;'}${abs}</span>`;
+        }
+        function buildSummary() {
+            const s=V_ALL.filter(r=>(r[2]||"").toLowerCase().includes("sale")).length;
+            const p=V_ALL.filter(r=>(r[2]||"").toLowerCase().includes("purchase")).length;
+            document.getElementById("summaryBar").innerHTML=
+                `<div class="summary-pill pill-total"><span class="label">Total Vouchers</span>${V_ALL.length}</div>
+                 <div class="summary-pill pill-sale"><span class="label">Sales</span>${s}</div>
+                 <div class="summary-pill pill-purchase"><span class="label">Purchases</span>${p}</div>`;
+        }
+        function renderV() {
+            const start=(vPage-1)*V_PAGE, slice=vFiltered.slice(start,start+V_PAGE);
+            const tbody=document.getElementById("vBody");
+            if(!vFiltered.length){tbody.innerHTML='<tr><td colspan="6" class="empty">No vouchers found.</td></tr>';document.getElementById("vinfo").textContent="";document.getElementById("vpagination").innerHTML="";return;}
+            tbody.innerHTML=slice.map((r,i)=>{
+                const idx=start+i;
+                return `<tr class="clickable" data-idx="${idx}">
+                 <td>${start+i+1}</td>
+                 <td>${r[0]||"&mdash;"}</td>
+                 <td><strong>${r[1]||"&mdash;"}</strong></td>
+                 <td>${badge(r[2])}</td>
+                 <td>${r[3]||"&mdash;"}</td>
+                 <td>${fmtAmt(r[4])}</td></tr>`;
+            }).join("");
+            tbody.querySelectorAll("tr.clickable").forEach(tr=>{
+                tr.addEventListener("click", function(){
+                    const r=vFiltered[parseInt(this.dataset.idx)];
+                    if(!r) return;
+                    window.location.href="/voucher?vnum="+encodeURIComponent(r[1])+"&vtype="+encodeURIComponent(r[2]);
+                });
+            });
+            document.getElementById("vinfo").textContent=`Showing ${start+1}\u2013${Math.min(start+V_PAGE,vFiltered.length)} of ${vFiltered.length} vouchers`;
+            renderVPages();
+        }
+        function renderVPages() {
+            const total=Math.ceil(vFiltered.length/V_PAGE),el=document.getElementById("vpagination");
+            if(total<=1){el.innerHTML="";return;}
+            let h=`<button onclick="goV(${vPage-1})" ${vPage===1?"disabled":""}>&#8592; Prev</button>`;
+            h+=`<button onclick="goV(1)" ${vPage===1?'class="active"':""}>1</button>`;
+            if(vPage>3)h+=`<span>&hellip;</span>`;
+            for(let p=Math.max(2,vPage-1);p<=Math.min(total-1,vPage+1);p++) h+=`<button onclick="goV(${p})" ${vPage===p?'class="active"':""}>${p}</button>`;
+            if(vPage<total-2)h+=`<span>&hellip;</span>`;
+            if(total>1)h+=`<button onclick="goV(${total})" ${vPage===total?'class="active"':""}>${total}</button>`;
+            h+=`<button onclick="goV(${vPage+1})" ${vPage===total?"disabled":""}>Next &#8594;</button>`;
+            el.innerHTML=h;
+        }
+        function goV(p){vPage=Math.max(1,Math.min(p,Math.ceil(vFiltered.length/V_PAGE)));renderV();window.scrollTo(0,0);}
+        function applyFilters(){
+            const q=document.getElementById("vsearch").value.toLowerCase().trim();
+            const type=document.getElementById("vtypeFilter").value.toLowerCase();
+            vFiltered=V_ALL.filter((r,i)=>(q===""||V_IDX[i].includes(q))&&(type===""||( (r[2]||"").toLowerCase().includes(type))));
+            vFiltered.sort((a,b)=>{
+                if(vCol===1){
+                    function vkey(r){
+                        const s=(r[1]||"");
+                        const parts=s.split("/");
+                        const n=parseInt(parts[parts.length-2]||parts[parts.length-1]||"0",10);
+                        return isNaN(n)?0:n;
+                    }
+                    const diff=vkey(a)-vkey(b);
+                    return vAsc?diff:-diff;
+                }
+                const va=(a[vCol]||"").toLowerCase(),vb=(b[vCol]||"").toLowerCase();
+                return vAsc?va.localeCompare(vb):vb.localeCompare(va);
+            });
+            vPage=1;renderV();
+        }
+        function sortV(col){if(vCol===col)vAsc=!vAsc;else{vCol=col;vAsc=true;}applyFilters();}
+        document.getElementById("vsearch").addEventListener("input",()=>{clearTimeout(vTimer);vTimer=setTimeout(applyFilters,250);});
+        document.getElementById("vtypeFilter").addEventListener("change",applyFilters);
+        buildSummary();
+        renderV();
+    </script>
+{% endblock %}
