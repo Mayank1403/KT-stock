@@ -28,8 +28,8 @@ class Config:
     # Instead of asking Tally for "every Sale/Purchase voucher ever
     # entered", we fetch a rolling window and let the UI page further
     # back in time on demand. This keeps each XML export small and fast.
-    VOUCHER_WINDOW_DAYS = int(os.environ.get("VOUCHER_WINDOW_DAYS", 30))
-    VOUCHER_MAX_WINDOW_DAYS = int(os.environ.get("VOUCHER_MAX_WINDOW_DAYS", 730))
+    VOUCHER_WINDOW_DAYS = int(os.environ.get("VOUCHER_WINDOW_DAYS", 7))
+    VOUCHER_MAX_WINDOW_DAYS = int(os.environ.get("VOUCHER_MAX_WINDOW_DAYS", 15))
 
     # ── Caching ──────────────────────────────────────────────────────
     CACHE_DIR = os.environ.get("CACHE_DIR", os.path.dirname(os.path.abspath(__file__)))
